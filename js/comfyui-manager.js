@@ -1,31 +1,48 @@
+import { api } from "../../scripts/api.js";
 import { app } from "../../scripts/app.js";
-import { api } from "../../scripts/api.js"
-import { ComfyDialog, $el } from "../../scripts/ui.js";
+import { $el, ComfyDialog } from "../../scripts/ui.js";
 import {
-	ShareDialog,
 	SUPPORTED_OUTPUT_NODE_TYPES,
-	getPotentialOutputsAndOutputNodes,
+	ShareDialog,
 	ShareDialogChooser,
+	getPotentialOutputsAndOutputNodes,
 	showOpenArtShareDialog,
 	showShareDialog,
 	showYouMLShareDialog
 } from "./comfyui-share-common.js";
 import { OpenArtShareDialog } from "./comfyui-share-openart.js";
-import { CustomNodesInstaller } from "./custom-nodes-downloader.js";
-import { AlternativesInstaller } from "./a1111-alter-downloader.js";
-import { SnapshotManager } from "./snapshot.js";
-import { ModelInstaller } from "./model-downloader.js";
-import { manager_instance, setManagerInstance, install_via_git_url, install_pip, rebootAPI, free_models, show_message } from "./common.js";
-import { ComponentBuilderDialog, load_components, set_component_policy, getPureName } from "./components-manager.js";
+import { free_models, install_pip, install_via_git_url, manager_instance, rebootAPI, setManagerInstance, show_message } from "./common.js";
+import { ComponentBuilderDialog, getPureName, load_components, set_component_policy } from "./components-manager.js";
+import { CustomNodesManager } from "./custom-nodes-manager.js";
+import { ModelManager } from "./model-manager.js";
 import { set_double_click_policy } from "./node_fixer.js";
+import { SnapshotManager } from "./snapshot.js";
 
 var docStyle = document.createElement('style');
 docStyle.innerHTML = `
+.comfy-toast {
+	position: fixed;
+	bottom: 20px;
+	left: 50%;
+	transform: translateX(-50%);
+	background-color: rgba(0, 0, 0, 0.7);
+	color: white;
+	padding: 10px 20px;
+	border-radius: 5px;
+	z-index: 1000;
+	transition: opacity 0.5s;
+}
+
+.comfy-toast-fadeout {
+	opacity: 0;
+}
+
 #cm-manager-dialog {
 	width: 1000px;
 	height: 520px;
 	box-sizing: content-box;
 	z-index: 10000;
+	overflow-y: auto;
 }
 
 .cb-widget {
@@ -184,6 +201,40 @@ docStyle.innerHTML = `
 	overflow: auto;
 }
 `;
+
+function is_legacy_front() {
+    let compareVersion = '1.2.49';
+    try {
+        const frontendVersion = window['__COMFYUI_FRONTEND_VERSION__'];
+        if (typeof frontendVersion !== 'string') {
+            return false;
+        }
+
+        function parseVersion(versionString) {
+            const parts = versionString.split('.').map(Number);
+            return parts.length === 3 && parts.every(part => !isNaN(part)) ? parts : null;
+        }
+
+        const currentVersion = parseVersion(frontendVersion);
+        const comparisonVersion = parseVersion(compareVersion);
+
+        if (!currentVersion || !comparisonVersion) {
+            return false;
+        }
+
+        for (let i = 0; i < 3; i++) {
+            if (currentVersion[i] > comparisonVersion[i]) {
+                return false;
+            } else if (currentVersion[i] < comparisonVersion[i]) {
+                return true;
+            }
+        }
+
+        return false;
+    } catch {
+        return true;
+    }
+}
 
 document.head.appendChild(docStyle);
 
@@ -568,10 +619,10 @@ async function fetchUpdates(update_check_checkbox) {
 				async function() {
 					app.ui.dialog.close();
 
-					if(!CustomNodesInstaller.instance)
-						CustomNodesInstaller.instance = new CustomNodesInstaller(app, self);
-
-					await CustomNodesInstaller.instance.show(CustomNodesInstaller.ShowMode.UPDATE);
+					if(!CustomNodesManager.instance) {
+						CustomNodesManager.instance = new CustomNodesManager(app, self);
+					}
+					await CustomNodesManager.instance.show(CustomNodesManager.ShowMode.UPDATE);
 				}
 			);
 
@@ -714,12 +765,13 @@ class ManagerMenuDialog extends ComfyDialog {
 			[
 				$el("button.cm-button", {
 					type: "button",
-					textContent: "Install Custom Nodes",
+					textContent: "Custom Nodes Manager",
 					onclick:
 						() => {
-							if(!CustomNodesInstaller.instance)
-								CustomNodesInstaller.instance = new CustomNodesInstaller(app, self);
-							CustomNodesInstaller.instance.show(CustomNodesInstaller.ShowMode.NORMAL);
+							if(!CustomNodesManager.instance) {
+								CustomNodesManager.instance = new CustomNodesManager(app, self);
+							}
+							CustomNodesManager.instance.show(CustomNodesManager.ShowMode.NORMAL);
 						}
 				}),
 
@@ -728,20 +780,23 @@ class ManagerMenuDialog extends ComfyDialog {
 					textContent: "Install Missing Custom Nodes",
 					onclick:
 						() => {
-							if(!CustomNodesInstaller.instance)
-								CustomNodesInstaller.instance = new CustomNodesInstaller(app, self);
-							CustomNodesInstaller.instance.show(CustomNodesInstaller.ShowMode.MISSING_NODES);
+							if(!CustomNodesManager.instance) {
+								CustomNodesManager.instance = new CustomNodesManager(app, self);
+							}
+							CustomNodesManager.instance.show(CustomNodesManager.ShowMode.MISSING);
 						}
 				}),
 
+				
 				$el("button.cm-button", {
 					type: "button",
-					textContent: "Install Models",
+					textContent: "Model Manager",
 					onclick:
 						() => {
-							if(!ModelInstaller.instance)
-								ModelInstaller.instance = new ModelInstaller(app, self);
-							ModelInstaller.instance.show();
+							if(!ModelManager.instance) {
+								ModelManager.instance = new ModelManager(app, self);
+							}
+							ModelManager.instance.show();
 						}
 				}),
 
@@ -768,9 +823,10 @@ class ManagerMenuDialog extends ComfyDialog {
 					textContent: "Alternatives of A1111",
 					onclick:
 						() => {
-							if(!AlternativesInstaller.instance)
-								AlternativesInstaller.instance = new AlternativesInstaller(app, self);
-							AlternativesInstaller.instance.show();
+							if(!CustomNodesManager.instance) {
+								CustomNodesManager.instance = new CustomNodesManager(app, self);
+							}
+							CustomNodesManager.instance.show(CustomNodesManager.ShowMode.ALTERNATIVES);
 						}
 				}),
 
@@ -820,24 +876,27 @@ class ManagerMenuDialog extends ComfyDialog {
 		});
 
 		// nickname
-		let badge_combo = document.createElement("select");
-		badge_combo.setAttribute("title", "Configure the content to be displayed on the badge at the top right corner of the node. The ID is the identifier of the node. If 'hide built-in' is selected, both unknown nodes and built-in nodes will be omitted, making them indistinguishable");
-		badge_combo.className = "cm-menu-combo";
-		badge_combo.appendChild($el('option', { value: 'none', text: 'Badge: None' }, []));
-		badge_combo.appendChild($el('option', { value: 'nick', text: 'Badge: Nickname' }, []));
-		badge_combo.appendChild($el('option', { value: 'nick_hide', text: 'Badge: Nickname (hide built-in)' }, []));
-		badge_combo.appendChild($el('option', { value: 'id_nick', text: 'Badge: #ID Nickname' }, []));
-		badge_combo.appendChild($el('option', { value: 'id_nick_hide', text: 'Badge: #ID Nickname (hide built-in)' }, []));
+		let badge_combo = "";
+		if(is_legacy_front()) {
+            badge_combo = document.createElement("select");
+            badge_combo.setAttribute("title", "Configure the content to be displayed on the badge at the top right corner of the node. The ID is the identifier of the node. If 'hide built-in' is selected, both unknown nodes and built-in nodes will be omitted, making them indistinguishable");
+            badge_combo.className = "cm-menu-combo";
+            badge_combo.appendChild($el('option', { value: 'none', text: 'Badge: None' }, []));
+            badge_combo.appendChild($el('option', { value: 'nick', text: 'Badge: Nickname' }, []));
+            badge_combo.appendChild($el('option', { value: 'nick_hide', text: 'Badge: Nickname (hide built-in)' }, []));
+            badge_combo.appendChild($el('option', { value: 'id_nick', text: 'Badge: #ID Nickname' }, []));
+            badge_combo.appendChild($el('option', { value: 'id_nick_hide', text: 'Badge: #ID Nickname (hide built-in)' }, []));
 
-		api.fetchApi('/manager/badge_mode')
-			.then(response => response.text())
-			.then(data => { badge_combo.value = data; badge_mode = data; });
+            api.fetchApi('/manager/badge_mode')
+                .then(response => response.text())
+                .then(data => { badge_combo.value = data; badge_mode = data; });
 
-		badge_combo.addEventListener('change', function (event) {
-			api.fetchApi(`/manager/badge_mode?value=${event.target.value}`);
-			badge_mode = event.target.value;
-			app.graph.setDirtyCanvas(true);
-		});
+            badge_combo.addEventListener('change', function (event) {
+                api.fetchApi(`/manager/badge_mode?value=${event.target.value}`);
+                badge_mode = event.target.value;
+                app.graph.setDirtyCanvas(true);
+            });
+		}
 
 		// channel
 		let channel_combo = document.createElement("select");
@@ -892,6 +951,7 @@ class ManagerMenuDialog extends ComfyDialog {
 			['youml', 'YouML'],
 			['matrix', 'Matrix Server'],
 			['comfyworkflows', 'ComfyWorkflows'],
+			['copus', 'Copus'],
 			['all', 'All'],
 		];
 		for (const option of share_options) {
@@ -922,6 +982,7 @@ class ManagerMenuDialog extends ComfyDialog {
 		dbl_click_policy_combo.className = "cm-menu-combo";
 		dbl_click_policy_combo.appendChild($el('option', { value: 'none', text: 'Double-Click: None' }, []));
 		dbl_click_policy_combo.appendChild($el('option', { value: 'copy-all', text: 'Double-Click: Copy All Connections' }, []));
+		dbl_click_policy_combo.appendChild($el('option', { value: 'copy-full', text: 'Double-Click: Copy All Connections and shape' }, []));
 		dbl_click_policy_combo.appendChild($el('option', { value: 'copy-input', text: 'Double-Click: Copy Input Connections' }, []));
 		dbl_click_policy_combo.appendChild($el('option', { value: 'possible-input', text: 'Double-Click: Possible Input Connections' }, []));
 		dbl_click_policy_combo.appendChild($el('option', { value: 'dual', text: 'Double-Click: Possible(left) + Copy(right)' }, []));
@@ -1022,6 +1083,10 @@ class ManagerMenuDialog extends ComfyDialog {
 							const menu = new LiteGraph.ContextMenu(
 								[
 									{
+										title: "ComfyUI Docs",
+										callback: () => { window.open("https://docs.comfy.org/", "comfyui-official-manual"); },
+									},
+									{
 										title: "Comfy Custom Node How To",
 										callback: () => { window.open("https://github.com/chrisgoringe/Comfy-Custom-Node-How-To/wiki/aaa_index", "comfyui-community-manual1"); },
 									},
@@ -1072,7 +1137,7 @@ class ManagerMenuDialog extends ComfyDialog {
 						textContent: 'Workflow Gallery',
 						style: {
 							'text-align': 'center',
-							'color': 'white',
+							'color': 'var(--input-text)',
 							'font-size': '18px',
 							'margin': 0,
 							'padding': 0,
@@ -1083,7 +1148,7 @@ class ManagerMenuDialog extends ComfyDialog {
 							textContent: `(${localStorage.getItem("wg_last_visited") ? localStorage.getItem("wg_last_visited").split('/')[2] : ''})`,
 							style: {
 								'text-align': 'center',
-								'color': 'white',
+								'color': 'var(--input-text)',
 								'font-size': '12px',
 								'margin': 0,
 								'padding': 0,
@@ -1212,18 +1277,18 @@ class ManagerMenuDialog extends ComfyDialog {
 					},
 				},
 				{
-					title: "Open 'flowt.ai'",
+					title: "Open 'esheep'",
 					callback: () => {
-						const url = "https://flowt.ai/";
+						const url = "https://www.esheep.com";
 						localStorage.setItem("wg_last_visited", url);
 						window.open(url, url);
 						modifyButtonStyle(url);
 					},
 				},
 				{
-					title: "Open 'esheep'",
+					title: "Open 'Copus.io'",
 					callback: () => {
-						const url = "https://www.esheep.com";
+						const url = "https://www.copus.io";
 						localStorage.setItem("wg_last_visited", url);
 						window.open(url, url);
 						modifyButtonStyle(url);
@@ -1273,6 +1338,66 @@ app.registerExtension({
 		separator.style.width = "100%";
 		menu.append(separator);
 
+		try {
+			// new style Manager buttons
+
+			// unload models button into new style Manager button
+			let cmGroup = new (await import("../../scripts/ui/components/buttonGroup.js")).ComfyButtonGroup(
+				new(await import("../../scripts/ui/components/button.js")).ComfyButton({
+					icon: "puzzle",
+					action: () => {
+						if(!manager_instance)
+							setManagerInstance(new ManagerMenuDialog());
+						manager_instance.show();
+					},
+					tooltip: "ComfyUI Manager",
+					content: "Manager",
+					classList: "comfyui-button comfyui-menu-mobile-collapse primary"
+				}).element,
+				new(await import("../../scripts/ui/components/button.js")).ComfyButton({
+					icon: "vacuum-outline",
+					action: () => {
+						free_models();
+					},
+					tooltip: "Unload Models"
+				}).element,
+				new(await import("../../scripts/ui/components/button.js")).ComfyButton({
+					icon: "vacuum",
+					action: () => {
+						free_models(true);
+					},
+					tooltip: "Free model and node cache"
+				}).element,
+				new(await import("../../scripts/ui/components/button.js")).ComfyButton({
+					icon: "share",
+					action: () => {
+						if (share_option === 'openart') {
+							showOpenArtShareDialog();
+							return;
+						} else if (share_option === 'matrix' || share_option === 'comfyworkflows') {
+							showShareDialog(share_option);
+							return;
+						} else if (share_option === 'youml') {
+							showYouMLShareDialog();
+							return;
+						}
+
+						if(!ShareDialogChooser.instance) {
+							ShareDialogChooser.instance = new ShareDialogChooser();
+						}
+						ShareDialogChooser.instance.show();
+					},
+					tooltip: "Share"
+				}).element
+			);
+
+			app.menu?.settingsGroup.element.before(cmGroup.element);
+		}
+		catch(exception) {
+			console.log('ComfyUI is outdated. New style menu based features are disabled.');
+		}
+
+		// old style Manager button
 		const managerButton = document.createElement("button");
 		managerButton.textContent = "Manager";
 		managerButton.onclick = () => {
@@ -1281,7 +1406,6 @@ app.registerExtension({
 				manager_instance.show();
 			}
 		menu.append(managerButton);
-
 
 		const shareButton = document.createElement("button");
 		shareButton.id = "shareButton";
@@ -1320,24 +1444,28 @@ app.registerExtension({
 	},
 
 	async nodeCreated(node, app) {
-		if(!node.badge_enabled) {
-			node.getNickname = function () { return getNickname(node, node.comfyClass.trim()) };
-			let orig = node.onDrawForeground;
-			if(!orig)
-				orig = node.__proto__.onDrawForeground;
+	    if(is_legacy_front()) {
+            if(!node.badge_enabled) {
+                node.getNickname = function () { return getNickname(node, node.comfyClass.trim()) };
+                let orig = node.onDrawForeground;
+                if(!orig)
+                    orig = node.__proto__.onDrawForeground;
 
-			node.onDrawForeground = function (ctx) {
-				drawBadge(node, orig, arguments)
-			};
-			node.badge_enabled = true;
+                node.onDrawForeground = function (ctx) {
+                    drawBadge(node, orig, arguments)
+                };
+                node.badge_enabled = true;
+            }
 		}
 	},
 
 	async loadedGraphNode(node, app) {
-		if(!node.badge_enabled) {
-			const orig = node.onDrawForeground;
-			node.getNickname = function () { return getNickname(node, node.type.trim()) };
-			node.onDrawForeground = function (ctx) { drawBadge(node, orig, arguments) };
+	    if(is_legacy_front()) {
+            if(!node.badge_enabled) {
+                const orig = node.onDrawForeground;
+                node.getNickname = function () { return getNickname(node, node.type.trim()) };
+                node.onDrawForeground = function (ctx) { drawBadge(node, orig, arguments) };
+            }
 		}
 	},
 
@@ -1347,7 +1475,7 @@ app.registerExtension({
 		node.prototype.getExtraMenuOptions = function (_, options) {
 			origGetExtraMenuOptions?.apply?.(this, arguments);
 
-			if (node.category.startsWith('group nodes/')) {
+			if (node.category.startsWith('group nodes>')) {
 				options.push({
 					content: "Save As Component",
 					callback: (obj) => {

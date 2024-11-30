@@ -1,6 +1,7 @@
-import { app } from "../../scripts/app.js";
 import { api } from "../../scripts/api.js";
-import { ComfyDialog, $el } from "../../scripts/ui.js";
+import { app } from "../../scripts/app.js";
+import { $el, ComfyDialog } from "../../scripts/ui.js";
+import { CopusShareDialog } from "./comfyui-share-copus.js";
 import { OpenArtShareDialog } from "./comfyui-share-openart.js";
 import { YouMLShareDialog } from "./comfyui-share-youml.js";
 
@@ -187,6 +188,21 @@ export const shareToEsheep= () => {
 	})
 }
 
+export const showCopusShareDialog = () => {
+  if (!CopusShareDialog.instance) {
+    CopusShareDialog.instance = new CopusShareDialog();
+  }
+
+  return app.graphToPrompt()
+    .then(prompt => {
+      return app.graph._nodes;
+    })
+    .then(nodes => {
+        const { potential_outputs, potential_output_nodes } = getPotentialOutputsAndOutputNodes(nodes);
+        CopusShareDialog.instance.show({ potential_outputs, potential_output_nodes});
+    })
+}
+
 export const showOpenArtShareDialog = () => {
   if (!OpenArtShareDialog.instance) {
     OpenArtShareDialog.instance = new OpenArtShareDialog();
@@ -299,7 +315,7 @@ export class ShareDialogChooser extends ComfyDialog {
 				key: "comfyworkflows",
 				textContent: "ComfyWorkflows",
 				website: "https://comfyworkflows.com",
-				description: "Share & browse thousands of ComfyUI workflows and art 🎨<br/><br/><a style='color:white;' href='https://comfyworkflows.com' target='_blank'>ComfyWorkflows.com</a>",
+				description: "Share & browse thousands of ComfyUI workflows and art 🎨<br/><br/><a style='color:var(--input-text);' href='https://comfyworkflows.com' target='_blank'>ComfyWorkflows.com</a>",
 				onclick: () => {
 				  showShareDialog('comfyworkflows').then((suc) => {
 				    suc && this.close();
@@ -310,10 +326,20 @@ export class ShareDialogChooser extends ComfyDialog {
 				key: "esheep",
 				textContent: "eSheep",
 				website: "https://www.esheep.com",
-				description: "Share & download thousands of ComfyUI workflows on <a style='color:white;' href='https://www.esheep.com' target='_blank'>esheep.com</a>",
+				description: "Share & download thousands of ComfyUI workflows on <a style='color:var(--input-text);' href='https://www.esheep.com' target='_blank'>esheep.com</a>",
 				onclick: () => {
 					shareToEsheep();
 				  	this.close();
+				}
+			},
+			{
+				key: "Copus",
+				textContent: "Copus",
+				website: "https://www.copus.io",
+				description: "🔴 Permanently store and secure ownership of your workflow on the open-source platform: <a style='color:var(--input-text);' href='https://copus.io' target='_blank'>Copus.io</a>",
+				onclick: () => {
+					showCopusShareDialog();
+				  this.close();
 				}
 			},
 		];
@@ -356,7 +382,7 @@ export class ShareDialogChooser extends ComfyDialog {
 					innerHTML: b.description,
 					style: {
 						'text-align': 'left',
-						color: 'white',
+						color: 'var(--input-text)',
 						'font-size': '14px',
 						'margin-bottom': '0',
 					},
@@ -367,7 +393,7 @@ export class ShareDialogChooser extends ComfyDialog {
 					href: b.website,
 					target: "_blank",
 					style: {
-						color: 'white',
+						color: 'var(--input-text)',
 						'margin-left': '10px',
 						'font-size': '12px',
 						'text-decoration': 'none',
@@ -414,7 +440,7 @@ export class ShareDialogChooser extends ComfyDialog {
 		      textContent: 'Choose a platform to share your workflow',
 			    style: {
 				  'text-align': 'center',
-				  'color': 'white',
+				  'color': 'var(--input-text)',
 				  'font-size': '18px',
 				  'margin-bottom': '10px',
 				},
@@ -660,7 +686,7 @@ export class ShareDialog extends ComfyDialog {
 				$el("div", {}, [
 					$el("p", {
 						size: 3, color: "white", style: {
-							color: 'white'
+							color: 'var(--input-text)'
 						}
 					}, [`Select where to share your art:`]),
 					this.matrix_destination_checkbox,
@@ -675,7 +701,7 @@ export class ShareDialog extends ComfyDialog {
 					size: 3,
 					color: "white",
 					style: {
-						color: 'white'
+						color: 'var(--input-text)'
 					}
 				}, []),
 				this.credits_input,
@@ -686,7 +712,7 @@ export class ShareDialog extends ComfyDialog {
 					size: 3,
 					color: "white",
 					style: {
-						color: 'white'
+						color: 'var(--input-text)'
 					}
 				}, []),
 				this.title_input,
@@ -697,7 +723,7 @@ export class ShareDialog extends ComfyDialog {
 					size: 3,
 					color: "white",
 					style: {
-						color: 'white'
+						color: 'var(--input-text)'
 					}
 				}, []),
 				this.description_input,
@@ -963,7 +989,7 @@ export class ShareDialog extends ComfyDialog {
 			}
 			const radio_button_text = $el("label", {
 				// style: {
-				// 	color: 'white'
+				// 	color: 'var(--input-text)'
 				// }
 			}, [output.title])
 			radio_button.style.color = "var(--fg-color)";
@@ -1002,7 +1028,7 @@ export class ShareDialog extends ComfyDialog {
 			color: "white",
 			style: {
 				'text-align': 'center',
-				color: 'white',
+				color: 'var(--input-text)',
 				backgroundColor: 'black',
 				padding: '10px',
 				'margin-top': '0px',
@@ -1014,7 +1040,7 @@ export class ShareDialog extends ComfyDialog {
 				color: "white",
 				style: {
 					'text-align': 'center',
-					color: 'white',
+					color: 'var(--input-text)',
 					'margin-bottom': '5px',
 					'font-style': 'italic',
 					'font-size': '12px',

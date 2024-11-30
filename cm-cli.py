@@ -35,11 +35,13 @@ restore_snapshot_path = os.path.join(startup_script_path, "restore-snapshot.json
 pip_overrides_path = os.path.join(comfyui_manager_path, "pip_overrides.json")
 git_script_path = os.path.join(comfyui_manager_path, "git_helper.py")
 
+cm_global.pip_blacklist = ['torch', 'torchsde', 'torchvision']
 cm_global.pip_downgrade_blacklist = ['torch', 'torchsde', 'torchvision', 'transformers', 'safetensors', 'kornia']
 cm_global.pip_overrides = {}
 if os.path.exists(pip_overrides_path):
     with open(pip_overrides_path, 'r', encoding="UTF-8", errors="ignore") as json_file:
         cm_global.pip_overrides = json.load(json_file)
+        cm_global.pip_overrides['numpy'] = 'numpy<2'
 
 
 def check_comfyui_hash():
@@ -107,7 +109,7 @@ class Ctx:
             install_script_path = os.path.join(repo_path, 'install.py')
 
             if os.path.exists(requirements_path):
-                with (open(requirements_path, 'r', encoding="UTF-8", errors="ignore") as file):
+                with open(requirements_path, 'r', encoding="UTF-8", errors="ignore") as file:
                     for line in file:
                         package_name = core.remap_pip_package(line.strip())
                         if package_name and not core.is_installed(package_name):
@@ -201,7 +203,7 @@ cm_ctx = Ctx()
 
 
 def install_node(node_name, is_all=False, cnt_msg=''):
-    if '://' in node_name:
+    if core.is_valid_url(node_name):
         # install via urls
         res = core.gitclone_install([node_name])
         if not res:

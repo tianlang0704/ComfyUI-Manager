@@ -101,10 +101,14 @@ function connect_inputs(nearest_inputs, node) {
 	}
 }
 
-function node_info_copy(src, dest, connect_both) {
+function node_info_copy(src, dest, connect_both, copy_shape) {
 	// copy input connections
 	for(let i in src.inputs) {
 		let input = src.inputs[i];
+		if (input.widget !== undefined) {
+			const destWidget = dest.widgets.find(x => x.name === input.widget.name);
+			dest.convertWidgetToInput(destWidget);
+		}
 		if(input.link) {
 			let link = app.graph.links[input.link];
 			let src_node = app.graph.getNodeById(link.origin_id);
@@ -138,6 +142,12 @@ function node_info_copy(src, dest, connect_both) {
 		}
 	}
 
+	if(copy_shape) {
+		dest.color = src.color;
+		dest.bgcolor = src.bgcolor;
+		dest.size = max(src.size, dest.size);
+	}
+
 	app.graph.afterChange();
 }
 
@@ -154,6 +164,7 @@ app.registerExtension({
 
 			switch(double_click_policy) {
 				case "copy-all":
+				case "copy-full":
 				case "copy-input":
 					{
 						if(node.inputs?.some(x => x.link != null) || node.outputs?.some(x => x.links != null && x.links.length > 0) )
@@ -161,7 +172,11 @@ app.registerExtension({
 
 						let src_node = lookup_nearest_nodes(node);
 						if(src_node)
-							node_info_copy(src_node, node, double_click_policy == "copy-all");
+						{
+							let both_connection = double_click_policy != "copy-input";
+							let copy_shape = double_click_policy == "copy-full";
+							node_info_copy(src_node, node, both_connection, copy_shape);
+						}
 					}
 					break;
 				case "possible-input":
@@ -202,7 +217,7 @@ app.registerExtension({
 					let new_node = LiteGraph.createNode(nodeType.comfyClass);
 					new_node.pos = [this.pos[0], this.pos[1]];
 					app.canvas.graph.add(new_node, false);
-					node_info_copy(this, new_node);
+					node_info_copy(this, new_node, true);
 					app.canvas.graph.remove(this);
 				},
 			});

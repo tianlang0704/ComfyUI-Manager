@@ -8,15 +8,19 @@ import re
 import locale
 import platform
 import json
-
+import ast
+import logging
 
 glob_path = os.path.join(os.path.dirname(__file__), "glob")
 sys.path.append(glob_path)
 
+import security_check
 from manager_util import *
 import cm_global
 
+security_check.security_check()
 
+cm_global.pip_blacklist = ['torch', 'torchsde', 'torchvision']
 cm_global.pip_downgrade_blacklist = ['torch', 'torchsde', 'torchvision', 'transformers', 'safetensors', 'kornia']
 
 
@@ -57,6 +61,9 @@ def check_file_logging():
 
 check_file_logging()
 
+comfy_path = os.environ.get('COMFYUI_PATH')
+if comfy_path is None:
+    comfy_path = os.path.abspath(os.path.dirname(sys.modules['__main__'].__file__))
 
 sys.__comfyui_manager_register_message_collapse = register_message_collapse
 sys.__comfyui_manager_is_import_failed_extension = is_import_failed_extension
@@ -76,6 +83,7 @@ cm_global.pip_overrides = {}
 if os.path.exists(pip_overrides_path):
     with open(pip_overrides_path, 'r', encoding="UTF-8", errors="ignore") as json_file:
         cm_global.pip_overrides = json.load(json_file)
+        cm_global.pip_overrides['numpy'] = 'numpy<2'
 
 
 def remap_pip_package(pkg):
@@ -88,36 +96,6 @@ def remap_pip_package(pkg):
 
 
 std_log_lock = threading.Lock()
-
-
-class TerminalHook:
-    def __init__(self):
-        self.hooks = {}
-
-    def add_hook(self, k, v):
-        self.hooks[k] = v
-
-    def remove_hook(self, k):
-        if k in self.hooks:
-            del self.hooks[k]
-
-    def write_stderr(self, msg):
-        for v in self.hooks.values():
-            try:
-                v.write_stderr(msg)
-            except Exception:
-                pass
-
-    def write_stdout(self, msg):
-        for v in self.hooks.values():
-            try:
-                v.write_stdout(msg)
-            except Exception:
-                pass
-
-
-terminal_hook = TerminalHook()
-sys.__comfyui_manager_terminal_hook = terminal_hook
 
 
 def handle_stream(stream, prefix):
@@ -135,8 +113,8 @@ def handle_stream(stream, prefix):
                 print(prefix, msg, end="")
 
 
-def process_wrap(cmd_str, cwd_path, handler=None):
-    process = subprocess.Popen(cmd_str, cwd=cwd_path, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, bufsize=1)
+def process_wrap(cmd_str, cwd_path, handler=None, env=None):
+    process = subprocess.Popen(cmd_str, cwd=cwd_path, env=env, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, bufsize=1)
 
     if handler is None:
         handler = handle_stream
@@ -159,6 +137,8 @@ try:
         if port_index + 1 < len(sys.argv):
             port = int(sys.argv[port_index + 1])
             postfix = f"_{port}"
+        else:
+            postfix = ""
     else:
         postfix = ""
 
@@ -196,6 +176,7 @@ try:
 
     is_start_mode = True
 
+
     class ComfyUIManagerLogger:
         def __init__(self, is_stdout):
             self.is_stdout = is_stdout
@@ -211,6 +192,9 @@ try:
             except AttributeError:
                 # Handle error
                 raise ValueError("The object does not have a fileno method")
+
+        def isatty(self):
+            return False
 
         def write(self, message):
             global is_start_mode
@@ -241,9 +225,9 @@ try:
             else:
                 self.sync_write(message)
 
-        def sync_write(self, message):
+        def sync_write(self, message, file_only=False):
             with log_lock:
-                timestamp = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')[:-3]
+                timestamp = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S.%f')[:-3]
                 if self.last_char != '\n':
                     log_file.write(message)
                 else:
@@ -251,15 +235,14 @@ try:
                 log_file.flush()
                 self.last_char = message if message == '' else message[-1]
 
-            with std_log_lock:
-                if self.is_stdout:
-                    write_stdout(message)
-                    original_stdout.flush()
-                    terminal_hook.write_stderr(message)
-                else:
-                    write_stderr(message)
-                    original_stderr.flush()
-                    terminal_hook.write_stdout(message)
+            if not file_only:
+                with std_log_lock:
+                    if self.is_stdout:
+                        write_stdout(message)
+                        original_stdout.flush()
+                    else:
+                        write_stderr(message)
+                        original_stderr.flush()
 
         def flush(self):
             log_file.flush()
@@ -290,11 +273,35 @@ try:
 
     if enable_file_logging:
         sys.stdout = ComfyUIManagerLogger(True)
-        sys.stderr = ComfyUIManagerLogger(False)
+        stderr_wrapper = ComfyUIManagerLogger(False)
+        sys.stderr = stderr_wrapper
 
         atexit.register(close_log)
     else:
         sys.stdout.close_log = lambda: None
+        stderr_wrapper = None
+
+
+    class LoggingHandler(logging.Handler):
+        def emit(self, record):
+            global is_start_mode
+
+            message = record.getMessage()
+
+            if is_start_mode:
+                match = re.search(pat_import_fail, message)
+                if match:
+                    import_failed_extensions.add(match.group(1))
+
+                if 'Starting server' in message:
+                    is_start_mode = False
+
+            if stderr_wrapper:
+                stderr_wrapper.sync_write(message+'\n', file_only=True)
+
+
+    logging.getLogger().addHandler(LoggingHandler())
+
 
 except Exception as e:
     print(f"[ComfyUI-Manager] Logging failed: {e}")
@@ -328,6 +335,7 @@ print("** ComfyUI startup time:", datetime.datetime.now())
 print("** Platform:", platform.system())
 print("** Python version:", sys.version)
 print("** Python executable:", sys.executable)
+print("** ComfyUI Path:", comfy_path)
 
 if enable_file_logging:
     print("** Log path:", os.path.abspath('comfyui.log'))
@@ -377,30 +385,7 @@ check_bypass_ssl()
 # Perform install
 processed_install = set()
 script_list_path = os.path.join(os.path.dirname(os.path.realpath(__file__)), "startup-scripts", "install-scripts.txt")
-pip_map = None
-
-
-def get_installed_packages():
-    global pip_map
-
-    if pip_map is None:
-        try:
-            result = subprocess.check_output([sys.executable, '-m', 'pip', 'list'], universal_newlines=True)
-
-            pip_map = {}
-            for line in result.split('\n'):
-                x = line.strip()
-                if x:
-                    y = line.split()
-                    if y[0] == 'Package' or y[0].startswith('-'):
-                        continue
-
-                    pip_map[y[0]] = y[1]
-        except subprocess.CalledProcessError as e:
-            print(f"[ComfyUI-Manager] Failed to retrieve the information of installed pip packages.")
-            return set()
-
-    return pip_map
+pip_fixer = PIPFixer(get_installed_packages())
 
 
 def is_installed(name):
@@ -409,11 +394,14 @@ def is_installed(name):
     if name.startswith('#'):
         return True
 
-    pattern = r'([^<>!=]+)([<>!=]=?)(.*)'
+    pattern = r'([^<>!=]+)([<>!=]=?)([0-9.a-zA-Z]*)'
     match = re.search(pattern, name)
 
     if match:
         name = match.group(1)
+
+    if name in cm_global.pip_blacklist:
+        return True
 
     if name in cm_global.pip_downgrade_blacklist:
         pips = get_installed_packages()
@@ -427,7 +415,20 @@ def is_installed(name):
                     print(f"[ComfyUI-Manager] skip black listed pip installation: '{name}'")
                     return True
 
-    return name.lower() in get_installed_packages()
+    pkg = get_installed_packages().get(name.lower())
+    if pkg is None:
+        return False  # update if not installed
+
+    if match is None:
+        return True   # don't update if version is not specified
+
+    if match.group(2) in ['>', '>=']:
+        if StrictVersion(pkg) < StrictVersion(match.group(3)):
+            return False
+        elif StrictVersion(pkg) > StrictVersion(match.group(3)):
+            print(f"[SKIP] Downgrading pip package isn't allowed: {name.lower()} (cur={pkg})")
+
+    return True       # prevent downgrade
 
 
 if os.path.exists(restore_snapshot_path):
@@ -457,7 +458,10 @@ if os.path.exists(restore_snapshot_path):
 
         print(f"[ComfyUI-Manager] Restore snapshot.")
         cmd_str = [sys.executable, git_script_path, '--apply-snapshot', restore_snapshot_path]
-        exit_code = process_wrap(cmd_str, custom_nodes_path, handler=msg_capture)
+
+        new_env = os.environ.copy()
+        new_env["COMFYUI_PATH"] = comfy_path
+        exit_code = process_wrap(cmd_str, custom_nodes_path, handler=msg_capture, env=new_env)
 
         repository_name = ''
         for url in cloned_repos:
@@ -477,14 +481,22 @@ if os.path.exists(restore_snapshot_path):
                             package_name = remap_pip_package(line.strip())
                             if package_name and not is_installed(package_name):
                                 if not package_name.startswith('#'):
-                                    install_cmd = [sys.executable, "-m", "pip", "install", package_name]
+                                    if '--index-url' in package_name:
+                                        s = package_name.split('--index-url')
+                                        install_cmd = [sys.executable, "-m", "pip", "install", s[0].strip(), '--index-url', s[1].strip()]
+                                    else:
+                                        install_cmd = [sys.executable, "-m", "pip", "install", package_name]
+
                                     this_exit_code += process_wrap(install_cmd, repo_path)
 
                 if os.path.exists(install_script_path) and f'{repo_path}/install.py' not in processed_install:
                     processed_install.add(f'{repo_path}/install.py')
                     install_cmd = [sys.executable, install_script_path]
                     print(f">>> {install_cmd} / {repo_path}")
-                    this_exit_code += process_wrap(install_cmd, repo_path)
+
+                    new_env = os.environ.copy()
+                    new_env["COMFYUI_PATH"] = comfy_path
+                    this_exit_code += process_wrap(install_cmd, repo_path, env=new_env)
 
                 if this_exit_code != 0:
                     print(f"[ComfyUI-Manager] Restoring '{repository_name}' is failed.")
@@ -517,14 +529,22 @@ def execute_lazy_install_script(repo_path, executable):
             for line in requirements_file:
                 package_name = remap_pip_package(line.strip())
                 if package_name and not is_installed(package_name):
-                    install_cmd = [executable, "-m", "pip", "install", package_name]
+                    if '--index-url' in package_name:
+                        s = package_name.split('--index-url')
+                        install_cmd = [sys.executable, "-m", "pip", "install", s[0].strip(), '--index-url', s[1].strip()]
+                    else:
+                        install_cmd = [sys.executable, "-m", "pip", "install", package_name]
+
                     process_wrap(install_cmd, repo_path)
 
     if os.path.exists(install_script_path) and f'{repo_path}/install.py' not in processed_install:
         processed_install.add(f'{repo_path}/install.py')
         print(f"Install: install script for '{repo_path}'")
         install_cmd = [executable, "install.py"]
-        process_wrap(install_cmd, repo_path)
+
+        new_env = os.environ.copy()
+        new_env["COMFYUI_PATH"] = comfy_path
+        process_wrap(install_cmd, repo_path, env=new_env)
 
 
 # Check if script_list_path exists
@@ -542,7 +562,7 @@ if os.path.exists(script_list_path):
             executed.add(line)
 
             try:
-                script = eval(line)
+                script = ast.literal_eval(line)
 
                 if script[1].startswith('#') and script[1] != '#FORCE':
                     if script[1] == "#LAZY-INSTALL-SCRIPT":
@@ -558,7 +578,9 @@ if os.path.exists(script_list_path):
                     print(f"\n## ComfyUI-Manager: EXECUTE => {script[1:]}")
                     print(f"\n## Execute install/(de)activation script for '{script[0]}'")
 
-                    exit_code = process_wrap(script[1:], script[0])
+                    new_env = os.environ.copy()
+                    new_env["COMFYUI_PATH"] = comfy_path
+                    exit_code = process_wrap(script[1:], script[0], env=new_env)
 
                     if exit_code != 0:
                         print(f"install/(de)activation script failed: {script[0]}")
@@ -575,8 +597,11 @@ if os.path.exists(script_list_path):
     print("\n[ComfyUI-Manager] Startup script completed.")
     print("#######################################################################\n")
 
+pip_fixer.fix_broken()
+
 del processed_install
-del pip_map
+del pip_fixer
+clear_pip_cache()
 
 
 def check_windows_event_loop_policy():

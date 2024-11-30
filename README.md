@@ -5,6 +5,9 @@
 ![menu](misc/menu.jpg)
 
 ## NOTICE
+* V2.48.1: Security policy has been changed. Downloads of models in the list are allowed under the 'normal' security level.
+* V2.47: Security policy has been changed. The former 'normal' is now 'normal-', and 'normal' no longer allows high-risk features, even if your ComfyUI is local.
+* V2.37 Show a ✅ mark to accounts that have been active on GitHub for more than six months.
 * V2.33 Security policy is applied.
 * V2.21 [cm-cli](docs/en/cm-cli.md) tool is added.
 * V2.18 to V2.18.3 is not functioning due to a severe bug. Users on these versions are advised to promptly update to V2.18.4. Please navigate to the `ComfyUI/custom_nodes/ComfyUI-Manager` directory and execute `git pull` to update.
@@ -85,6 +88,7 @@ This repository provides Colab notebooks that allow you to install and use Comfy
 * Support for automatically installing dependencies of custom nodes upon restarting Colab notebooks.
 
 ## Changes
+* **2.38** `Install Custom Nodes` menu is changed to `Custom Nodes Manager`.
 * **2.21** [cm-cli](docs/en/cm-cli.md) tool is added.
 * **2.4** Copy the connections of the nearest node by double-clicking.
 * **2.2.3** Support Components System
@@ -200,7 +204,6 @@ This repository provides Colab notebooks that allow you to install and use Comfy
 * Please submit a pull request to update either the custom-node-list.json or model-list.json file.
 
 * The scanner currently provides a detection function for missing nodes, which is capable of detecting nodes described by the following two patterns.
-  * Or you can provide manually `node_list.json` file.
 
 ```
 NODE_CLASS_MAPPINGS = {
@@ -214,6 +217,7 @@ NODE_CLASS_MAPPINGS.update({
     "SemSegPreprocessor": Uniformer_SemSegPreprocessor,
 })
 ```
+  * Or you can provide manually `node_list.json` file.
 
 * When you write a docstring in the header of the .py file for the Node as follows, it will be used for managing the database in the Manager.
   * Currently, only the `nickname` is being used, but other parts will also be utilized in the future.
@@ -277,11 +281,11 @@ NODE_CLASS_MAPPINGS.update({
 
 ## Support of missing nodes installation
 
-![missing-menu](misc/missing-menu.png)
+![missing-menu](misc/missing-menu.jpg)
 
 * When you click on the ```Install Missing Custom Nodes``` button in the menu, it displays a list of extension nodes that contain nodes not currently present in the workflow.
 
-![missing-list](misc/missing-list.png)
+![missing-list](misc/missing-list.jpg)
 
 
 ## Additional Feature
@@ -313,6 +317,8 @@ NODE_CLASS_MAPPINGS.update({
   * When you create the `pip_overrides.json` file, it changes the installation of specific pip packages to installations defined by the user.
     * Please refer to the `pip_overrides.json.template` file.
     
+* Use `aria2` as downloader
+  * [howto](docs/en/use_aria2.md)
 
 ## Scanner
 When you run the `scan.sh` script:
@@ -338,13 +344,17 @@ When you run the `scan.sh` script:
 * Currently, `vid2vid` is not being updated, causing compatibility issues.
 * If you encounter the error message `Overlapped Object has pending operation at deallocation on Comfyui Manager load` under Windows
   * Edit `config.ini` file: add `windows_selector_event_loop_policy = True`
-
+* if `SSL: CERTIFICATE_VERIFY_FAILED` error is occured.
+  * Edit `config.ini` file: add `bypass_ssl = True`
 
 ## Security policy
   * Edit `config.ini` file: add `security_level = <LEVEL>`
     * `strong`
       * doesn't allow `high` and `middle` level risky feature
     * `normal`
+      * doesn't allow `high` level risky feature
+      * `middle` level risky feature is available
+    * `normal-`
       * doesn't allow `high` level risky feature if `--listen` is specified and not starts with `127.`
       * `middle` level risky feature is available
     * `weak`
@@ -353,10 +363,10 @@ When you run the `scan.sh` script:
   * `high` level risky features
     * `Install via git url`, `pip install`
     * Installation of custom nodes registered not in the `default channel`.
-    * Display terminal log
+    * Fix custom nodes
   
   * `middle` level risky features
-    * Uninstall/Update/Fix custom nodes
+    * Uninstall/Update
     * Installation of custom nodes registered in the `default channel`.
     * Restore/Remove Snapshot
     * Restart
@@ -378,6 +388,11 @@ When you run the `scan.sh` script:
 * https://github.com/SimithWang/comfyui-renameImages
 * https://github.com/icefairy64/comfyui-model-tilt
 * https://github.com/andrewharp/ComfyUI-EasyNodes
+* https://github.com/SimithWang/comfyui-renameImages
+* https://github.com/Tcheko243/ComfyUI-Photographer-Alpha7-Nodes
+* https://github.com/Limbicnation/ComfyUINodeToolbox
+* https://github.com/chenpipi0807/pip_longsize
+* https://github.com/APZmedia/ComfyUI-APZmedia-srtTools
 
 ## Roadmap
 
@@ -389,10 +404,10 @@ When you run the `scan.sh` script:
 - [ ] Auto migration for custom nodes with changed structures.
 - [ ] Version control feature for nodes.
 - [ ] List of currently used custom nodes.
-- [ ] Download support multiple model download.
-- [ ] Model download via url.
+- [x] Download support multiple model download.
+- [x] Model download via url.
 - [x] List sorting (custom nodes).
-- [ ] List sorting (model).
+- [x] List sorting (model).
 - [ ] Provides description of node.
 
 

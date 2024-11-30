@@ -91,16 +91,6 @@
             "description": "Nodes:WW_ImageResize"
         },
         {
-            "author": "bmz55",
-            "title": "bmz nodes",
-            "reference": "https://github.com/bmz55/comfyui-bmz-nodes",
-            "files": [
-                "https://github.com/bmz55/comfyui-bmz-nodes"
-            ],
-            "install_type": "git-clone",
-            "description": "Nodes:Load Images From Dir With Name (Inspire - BMZ), Count Images In Dir (BMZ), Get Level Text (BMZ), Get Level Float (BMZ)"
-        },
-        {
             "author": "azure-dragon-ai",
             "title": "ComfyUI-HPSv2-Nodes",
             "reference": "https://github.com/azure-dragon-ai/ComfyUI-HPSv2-Nodes",
@@ -151,36 +141,6 @@
             "description": "This module provides an annotation @ComfyFunc to streamline adding custom node types in ComfyUI. It processes your function's signature to create a wrapped function and custom node definition required for ComfyUI, eliminating all the boilerplate code. In most cases you can just add a @ComfyFunc(\"category\") annotation to your existing function."
         },
         {
-            "author": "MokkaBoss1",
-            "title": "Woman_in_a_dress",
-            "reference": "https://github.com/MokkaBoss1/Woman_in_a_dress",
-            "files": [
-                "https://github.com/MokkaBoss1/Woman_in_a_dress/raw/main/Woman_In_A_Dress.py"
-            ],
-            "install_type": "git-clone",
-            "description": "Nodes:Woman_in_a_dress"
-        },
-        {
-            "author": "shinich39",
-            "title": "comfyui-concat-text-39",
-            "reference": "https://github.com/shinich39/comfyui-concat-text-39",
-            "files": [
-                "https://github.com/shinich39/comfyui-concat-text-39"
-            ],
-            "install_type": "git-clone",
-            "description": "Nodes:Concatenate multiple text nodes."
-        },
-        {
-            "author": "nilor-corp",
-            "title": "nilor-nodes",
-            "reference": "https://github.com/nilor-corp/nilor-nodes",
-            "files": [
-                "https://github.com/nilor-corp/nilor-nodes"
-            ],
-            "install_type": "git-clone",
-            "description": "Nodes:Nilor Floats, Nilor Int To List Of Bools, Nilor Bool From List Of Bools, Nilor Int From List Of Ints, Nilor List of Ints, Nilor Count Images In Directory"
-        },
-        {
             "author": "OuticNZ",
             "title": "ComfyUI-Simple-Of-Complex",
             "reference": "https://github.com/OuticNZ/ComfyUI-Simple-Of-Complex",
@@ -199,6 +159,87 @@
             ],
             "install_type": "git-clone",
             "description": "Nodes:jtong.Highway, Example"
+        },
+        {
+            "author": "thinkthinking",
+            "title": "ComfyUI-Ye",
+            "reference": "https://github.com/thinkthinking/ComfyUI-Ye",
+            "files": [
+                "https://github.com/thinkthinking/ComfyUI-Ye"
+            ],
+            "install_type": "git-clone",
+            "description": "Nodes:Signature|Ye, CheckpointLoader|Ye, PrintHelloWorld|Ye."
+        },
+        {
+            "author": "BoosterCore",
+            "title": "ComfyUI-BC-Experimental",
+            "reference": "https://github.com/BoosterCore/ComfyUI-BC-Experimental",
+            "files": [
+                "https://github.com/BoosterCore/ComfyUI-BC-Experimental"
+            ],
+            "install_type": "git-clone",
+            "description": "Nodes:ClipTextEncodeBC, SaveAnyText, SimpleText"
+        },
+        {
+            "author": "sonyeon-sj",
+            "title": "ComfyUI-easy_ImageSize_Selecter",
+            "reference": "https://github.com/sonyeon-sj/ComfyUI-easy_ImageSize_Selecter",
+            "files": [
+                "https://github.com/sonyeon-sj/ComfyUI-easy_ImageSize_Selecter"
+            ],
+            "install_type": "git-clone",
+            "description": "Custom node for ComfyUI Select the image size from the preset and select Vertical and Horizontal to output Width and Height."
+        },
+        {
+            "author": "boricuapab",
+            "title": "ComfyUI_BoricuapabWFNodePack",
+            "reference": "https://github.com/boricuapab/ComfyUI_BoricuapabWFNodePack",
+            "files": [
+                "https://github.com/boricuapab/ComfyUI_BoricuapabWFNodePack"
+            ],
+            "install_type": "git-clone",
+            "description": "Learning how to make my own comfy ui custom nodes"
+        },
+        {
+            "author": "mira-6",
+            "title": "mira-wildcard-node",
+            "reference": "https://github.com/mira-6/mira-wildcard-node",
+            "files": [
+                "https://github.com/mira-6/mira-wildcard-node"
+            ],
+            "install_type": "git-clone",
+            "description": "Mira's Simple Wildcard Node"
+        },
+        {
+            "author": "BetaDoggo",
+            "title": "ComfyUI Tetris",
+            "id": "tetris",
+            "reference": "https://github.com/BetaDoggo/ComfyUI-Tetris",
+            "files": [
+                "https://github.com/BetaDoggo/ComfyUI-Tetris"
+            ],
+            "install_type": "git-clone",
+            "description": "The primitive node and dummy input are required because comfy doesn't accept requests with identical graphs. You'll also need a show text node. I like the one from ComfyUI-Custom-Scripts. I got the generic tetris remake from claude so it may or may not be ripped from somewhere else."
+        },
+        {
+            "author": "FlyMyAI",
+            "title": "ComfyUI-ExampleNode",
+            "reference": "https://github.com/FlyMyAI/ComfyUI-ExampleNode",
+            "files": [
+                "https://github.com/FlyMyAI/ComfyUI-ExampleNode"
+            ],
+            "install_type": "git-clone",
+            "description": "Node to provide convenient ComfyUI standard, supported by flymy_comfyui."
+        },
+        {
+            "author": "Wanghanying",
+            "title": "ComfyUI_RAGDemo",
+            "reference": "https://github.com/Wanghanying/ComfyUI_RAGDemo",
+            "files": [
+                "https://github.com/Wanghanying/ComfyUI_RAGDemo"
+            ],
+            "install_type": "git-clone",
+            "description": "RAG Demo for LLM"
         }
     ]
 }
